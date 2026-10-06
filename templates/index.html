@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Spotify Randomizer</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"><script defer src="{{ url_for('static', filename='app.js') }}"></script></head>
+<body><main>
+<h1>Spotify Randomizer</h1>
+<p>Create a private copy with every eligible track in a random order. Your source stays unchanged.</p>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% if not configured %}<p>Set <code>SPOTIFY_CLIENT_ID</code> in your local <code>.env</code> and restart the application.</p>{% endif %}
+{% if state.profile %}
+<p>Connected as: {{ state.profile.get('display_name') or state.profile['id'] }}</p>
+<form method="post" action="{{ url_for('disconnect') }}"><input type="hidden" name="csrf" value="{{ state.csrf }}"><button class="secondary">Disconnect</button></form>
+<section><h2>Choose playlist</h2><p>Only playlists you own or collaborate on can be copied through this API.</p>
+<form method="post" action="{{ url_for('review') }}"><input type="hidden" name="csrf" value="{{ state.csrf }}">
+<label for="playlist">Playlist</label><select id="playlist" name="playlist_id" required><option value="">Choose a playlist</option>{% for playlist in state.playlists %}<option value="{{ playlist['id'] }}">{{ playlist['name'] }}</option>{% endfor %}</select>
+<button {% if not state.playlists %}disabled{% endif %}>Load and review tracks</button></form>
+{% if not state.playlists %}<p>No supported playlists found. Reconnect after creating a playlist in Spotify.</p>{% endif %}</section>
+{% else %}
+<form method="post" action="{{ url_for('login') }}"><input type="hidden" name="csrf" value="{{ state.csrf }}"><button {% if not configured %}disabled{% endif %}>Connect Spotify</button></form>
+{% endif %}
+{% if state.review %}{% set review = state.review %}
+<section><h2>Review: {{ review.source.name }}</h2><a href="https://open.spotify.com/playlist/{{ review.source.id }}" target="_blank" rel="noopener noreferrer">Open source in Spotify</a>
+<p>Retrieved: {{ review.total }} items · Eligible: {{ review.uris|length }} tracks (including duplicates)</p>
+{% for reason, count in review.skipped.items() %}<p>Skipped — {{ reason }}: {{ count }}</p>{% endfor %}
+{% if review.uris %}<p>The new playlist will be private. Its name will include the creation date and time.</p><form method="post" action="{{ url_for('create') }}"><input type="hidden" name="csrf" value="{{ state.csrf }}"><input type="hidden" name="review_id" value="{{ review.id }}"><button>Create Randomized Playlist</button></form>{% else %}<p class="error">No eligible music tracks. No playlist will be created.</p>{% endif %}</section>
+{% endif %}
+{% if state.result %}{% set result = state.result %}<section aria-live="polite">
+<h2>{{ 'Playlist created successfully' if result.complete else 'Playlist creation did not complete' }}</h2>
+<p>{{ result.name }}</p><p>Confirmed added: {{ result.added }} / {{ result.total }} tracks.</p>
+{% if result.error %}<p class="error">{{ result.error }}</p>{% endif %}
+{% if result.url %}<a class="button" href="{{ result.url }}" target="_blank" rel="noopener noreferrer">Open {{ 'playlist' if result.complete else 'incomplete playlist' }} in Spotify</a>{% endif %}
+{% for reason, count in result.skipped.items() %}<p>Skipped — {{ reason }}: {{ count }}</p>{% endfor %}
+{% if result.complete %}<p>Turn Spotify playback Shuffle off to listen in this exact generated order.</p>{% else %}<p>Any created playlist has been retained. Load and review the source again to start a new copy.</p>{% endif %}</section>{% endif %}
+<p id="status" role="status"></p>
+</main></body></html>
