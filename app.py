@@ -15,7 +15,8 @@ from auth import MemorySessions
 from randomizer import eligible_tracks, randomized_copy
 from spotify_client import SpotifyClient, SpotifyError
 
-SCOPES = 'playlist-read-private playlist-read-collaborative playlist-modify-private'
+SCOPES = 'playlist-read-private playlist-read-collaborative playlist-modify-private user-library-read'
+LIKED_SONGS = 'liked-songs'
 
 
 def create_app(config=None, client_factory=SpotifyClient):
@@ -121,17 +122,23 @@ def create_app(config=None, client_factory=SpotifyClient):
             abort(409, 'An operation is already running.')
         try:
             g.state.review = g.state.result = None
-            selected = next((p for p in g.state.playlists if p['id'] == request.form.get('playlist_id')), None)
-            if not selected:
-                raise SpotifyError('Choose a playlist from the list. Reconnect to refresh the list.')
+            if not g.state.profile:
+                raise SpotifyError('Connect Spotify before choosing a source.')
             api = client()
-            before = api.playlist(selected['id'])
-            items = api.items(selected['id'])
-            after = api.playlist(selected['id'])
-            if not before.get('snapshot_id') or before['snapshot_id'] != after.get('snapshot_id'):
-                raise SpotifyError('The source playlist changed during retrieval. Please load it again.')
+            if request.form.get('playlist_id') == LIKED_SONGS:
+                items = api.liked_songs()
+                source = {'id': LIKED_SONGS, 'name': 'Liked Songs'}
+            else:
+                selected = next((p for p in g.state.playlists if p['id'] == request.form.get('playlist_id')), None)
+                if not selected:
+                    raise SpotifyError('Choose a source from the list. Reconnect to refresh the list.')
+                before = api.playlist(selected['id'])
+                items = api.items(selected['id'])
+                source = api.playlist(selected['id'])
+                if not before.get('snapshot_id') or before['snapshot_id'] != source.get('snapshot_id'):
+                    raise SpotifyError('The source playlist changed during retrieval. Please load it again.')
             uris, skipped = eligible_tracks(items)
-            g.state.review = {'source': after, 'uris': uris, 'skipped': skipped,
+            g.state.review = {'source': source, 'uris': uris, 'skipped': skipped,
                               'total': len(items), 'id': secrets.token_urlsafe(32)}
             return redirect(url_for('index'))
         finally:
@@ -149,10 +156,11 @@ def create_app(config=None, client_factory=SpotifyClient):
                 raise SpotifyError('This playlist contains no eligible music tracks.')
             api = client()
             source = reviewed['source']
-            current = api.playlist(source['id'])
-            if current.get('snapshot_id') != source['snapshot_id']:
-                g.state.review = None
-                raise SpotifyError('The source playlist changed. Please load it again before creating a copy.')
+            if source['id'] != LIKED_SONGS:
+                current = api.playlist(source['id'])
+                if current.get('snapshot_id') != source['snapshot_id']:
+                    g.state.review = None
+                    raise SpotifyError('The source playlist changed. Please load it again before creating a copy.')
             # Consume before the first write: resubmitting cannot create another copy.
             g.state.review = None
             ordered = randomized_copy(reviewed['uris'])

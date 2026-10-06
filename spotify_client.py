@@ -127,6 +127,9 @@ class SpotifyClient:
     def playlists(self):
         return self.pages('/me/playlists', limit=50)
 
+    def liked_songs(self):
+        return self.pages('/me/tracks', limit=50)
+
     def playlist(self, playlist_id):
         playlist = self.request('GET', f'/playlists/{playlist_id}')
         if playlist.get('id') != playlist_id or not isinstance(playlist.get('name'), str) or not playlist.get('snapshot_id'):

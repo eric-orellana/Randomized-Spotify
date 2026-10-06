@@ -21,7 +21,7 @@ class SpotifyTests(unittest.TestCase):
         self.api = SpotifyClient('test-client', self.state, self.http, self.sleep)
 
     def test_both_paginated_resources(self):
-        for method, path in [(self.api.playlists, '/me/playlists'), (lambda: self.api.items('source'), '/playlists/source/items')]:
+        for method, path in [(self.api.playlists, '/me/playlists'), (lambda: self.api.items('source'), '/playlists/source/items'), (self.api.liked_songs, '/me/tracks')]:
             self.http.request.reset_mock()
             self.http.request.side_effect = [response(body={'items': [{'id': i} for i in range(50)], 'next': API + path + '?offset=50'}),
                                              response(body={'items': [{'id': 50}], 'next': None})]

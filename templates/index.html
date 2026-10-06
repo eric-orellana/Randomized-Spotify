@@ -9,16 +9,17 @@
 {% if state.profile %}
 <p>Connected as: {{ state.profile.get('display_name') or state.profile['id'] }}</p>
 <form method="post" action="{{ url_for('disconnect') }}"><input type="hidden" name="csrf" value="{{ state.csrf }}"><button class="secondary">Disconnect</button></form>
-<section><h2>Choose playlist</h2><p>Only playlists you own or collaborate on can be copied through this API.</p>
+<section><h2>Choose source</h2><p>Choose Liked Songs or a playlist you own or collaborate on.</p>
 <form method="post" action="{{ url_for('review') }}"><input type="hidden" name="csrf" value="{{ state.csrf }}">
-<label for="playlist">Playlist</label><select id="playlist" name="playlist_id" required><option value="">Choose a playlist</option>{% for playlist in state.playlists %}<option value="{{ playlist['id'] }}">{{ playlist['name'] }}</option>{% endfor %}</select>
-<button {% if not state.playlists %}disabled{% endif %}>Load and review tracks</button></form>
-{% if not state.playlists %}<p>No supported playlists found. Reconnect after creating a playlist in Spotify.</p>{% endif %}</section>
+<label for="playlist">Source</label><select id="playlist" name="playlist_id" required><option value="">Choose a source</option><option value="liked-songs">Liked Songs</option>{% for playlist in state.playlists %}<option value="{{ playlist['id'] }}">{{ playlist['name'] }}</option>{% endfor %}</select>
+<button>Load and review tracks</button></form>
+{% if not state.playlists %}<p>No supported playlists found. You can still randomize Liked Songs.</p>{% endif %}</section>
 {% else %}
 <form method="post" action="{{ url_for('login') }}"><input type="hidden" name="csrf" value="{{ state.csrf }}"><button {% if not configured %}disabled{% endif %}>Connect Spotify</button></form>
 {% endif %}
 {% if state.review %}{% set review = state.review %}
-<section><h2>Review: {{ review.source.name }}</h2><a href="https://open.spotify.com/playlist/{{ review.source.id }}" target="_blank" rel="noopener noreferrer">Open source in Spotify</a>
+<section><h2>Review: {{ review.source.name }}</h2>
+{% if review.source.id == 'liked-songs' %}<p>This copy uses the songs retrieved for this review. If you like or unlike songs, load the review again to include those changes.</p>{% else %}<a href="https://open.spotify.com/playlist/{{ review.source.id }}" target="_blank" rel="noopener noreferrer">Open source in Spotify</a>{% endif %}
 <p>Retrieved: {{ review.total }} items · Eligible: {{ review.uris|length }} tracks (including duplicates)</p>
 {% for reason, count in review.skipped.items() %}<p>Skipped — {{ reason }}: {{ count }}</p>{% endfor %}
 {% if review.uris %}<p>The new playlist will be private. Its name will include the creation date and time.</p><form method="post" action="{{ url_for('create') }}"><input type="hidden" name="csrf" value="{{ state.csrf }}"><input type="hidden" name="review_id" value="{{ review.id }}"><button>Create Randomized Playlist</button></form>{% else %}<p class="error">No eligible music tracks. No playlist will be created.</p>{% endif %}</section>

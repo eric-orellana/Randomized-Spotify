@@ -61,6 +61,41 @@ class AppTests(unittest.TestCase):
         self.assertIsNone(self.state.review)
         self.api.create.assert_not_called()
 
+    def test_liked_songs_review_and_creation_without_playlists(self):
+        self.state.playlists = []
+        items = [{'track': track(i)['item']} for i in range(151)]
+        items += [{'track': track(1)['item']}, {'track': None}]
+        self.api.liked_songs.return_value = items
+        page = self.browser.get('/', base_url='http://127.0.0.1').text
+        self.assertIn('<option value="liked-songs">Liked Songs</option>', page)
+        self.post('/review', playlist_id='liked-songs')
+        reviewed = self.state.review
+        self.assertEqual(len(reviewed['uris']), 152)
+        self.assertEqual(reviewed['skipped'], {'Missing item': 1})
+        self.assertEqual(reviewed['uris'].count(track(1)['item']['uri']), 2)
+        page = self.browser.get('/', base_url='http://127.0.0.1').text
+        self.assertIn('If you like or unlike songs', page)
+        self.assertNotIn('open.spotify.com/playlist/liked-songs', page)
+        expected = reviewed['uris'][::-1]
+        with patch('app.randomized_copy', side_effect=lambda values: values[::-1]):
+            self.post('/create', review_id=reviewed['id'])
+        self.api.playlist.assert_not_called()
+        self.api.items.assert_not_called()
+        self.api.liked_songs.assert_called_once()
+        self.assertEqual(sum([call.args[1] for call in self.api.append.call_args_list], []), expected)
+        self.assertTrue(self.state.result['complete'])
+        self.assertTrue(self.state.result['name'].startswith('Liked Songs - Randomized - '))
+
+    def test_empty_liked_songs_and_library_permission_failure(self):
+        self.api.liked_songs.return_value = []
+        self.post('/review', playlist_id='liked-songs')
+        self.post('/create', review_id=self.state.review['id'])
+        self.api.create.assert_not_called()
+        self.api.liked_songs.side_effect = SpotifyError('Spotify denied library access. Please reconnect.')
+        self.post('/review', playlist_id='liked-songs')
+        self.assertIsNone(self.state.review)
+        self.assertIn('reconnect', self.state.error)
+
     def test_empty_playlist_does_not_create(self):
         self.api.items.return_value = [{'item': None}]
         identifier = self.review()
@@ -107,6 +142,7 @@ class AppTests(unittest.TestCase):
         query = parse_qs(urlparse(result.location).query)
         self.assertEqual(query['code_challenge_method'], ['S256'])
         self.assertNotIn('client_secret', query)
+        self.assertIn('user-library-read', query['scope'][0].split())
         self.assertIn('https://accounts.spotify.com', result.headers['Content-Security-Policy'])
         self.browser.get('/callback?state=wrong&code=fake', base_url='http://127.0.0.1')
         self.api.token_request.assert_not_called()

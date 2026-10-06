@@ -34,13 +34,15 @@ For a Development Mode app, its owner must have Spotify Premium. Ensure your sig
 Open **http://127.0.0.1:5000** in your browser. Keep the terminal open; press Ctrl+C to stop.
 
 1. Click **Connect Spotify** and authorize playlist read and private playlist write access.
-2. Choose a playlist and click **Load and review tracks**. All pages are retrieved before the review appears.
+2. Choose **Liked Songs** or a playlist and click **Load and review tracks**. All pages are retrieved before the review appears.
 3. Review eligible counts and skipped items, then click **Create Randomized Playlist**.
 4. Open the resulting Spotify link. Turn playback **Shuffle off** to hear the physically stored randomized order.
 
 New names follow `Source - Randomized - HH:MM:SS MM/DD/YY`, using your computer's local time. Copies are always private and non-collaborative. Every new review/creation produces a fresh copy; existing copies are never overwritten. Spotify permits duplicate playlist names, including copies made in the same second.
 
 ## Behavior and limitations
+
+- **Liked Songs** reads all pages of your saved music using `GET /me/tracks` and the read-only `user-library-read` permission. After updating from a version without this feature, restart the app and reconnect Spotify to grant that permission. No configuration changes are needed. The copy is named `Liked Songs - Randomized - HH:MM:SS MM/DD/YY`; your library stays unchanged. Spotify provides no snapshot ID for Liked Songs, so creation uses the collection retrieved at review time. Reload the review after liking/unliking songs, and avoid changing your library during pagination.
 
 - The current [playlist items endpoint](https://developer.spotify.com/documentation/web-api/reference/get-playlists-items) supports source playlists you own or collaborate on. Followed playlists and Spotify-owned mixes are excluded; Spotify can still reject a listed collaborative playlist with a permission error.
 - Music track occurrences with valid Spotify track URIs are preserved, including duplicates. Local files, missing items, episodes/audiobook or unknown item types, and explicitly unplayable or restricted tracks are skipped and counted. Optional availability fields may be absent; absence alone does not mean unavailable. Spotify ultimately controls availability and relinking.
